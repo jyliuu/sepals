@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sepals"
+version = "0.1.0"
+description = "Separated ALS regression for scikit-learn, inspired by Beylkin, Garcke, and Mohlenkamp."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Jinyang Liu" }
+]
+keywords = [
+    "separated representation",
+    "alternating least squares",
+    "regression",
+    "scikit-learn",
+    "Beylkin",
+    "Garcke",
+    "Mohlenkamp",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scikit-learn>=1.6",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sepals"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

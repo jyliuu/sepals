@@ -1,0 +1,19 @@
+sepals is an independent Python implementation of the separated
+regression method described by:
+
+Gregory Beylkin, Jochen Garcke, and Martin J. Mohlenkamp,
+"Multivariate Regression and Machine Learning with Sums of Separable Functions",
+submitted December 2007; revised September 2008.
+PDF: https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625
+
+Algorithmic credit:
+- Separated representation as sums of products of one-dimensional factors.
+- Alternating least-squares reduction to one-dimensional subproblems.
+- Linear normal-equation formulation for basis-expanded one-dimensional factors.
+- Smoothness regularization by adding basis-dependent diagonal penalties.
+- Multilevel tent basis construction.
+
+This repository contains an independent implementation. The license in this
+repository applies only to this implementation code and documentation. It does
+not relicense the paper, paper text, paper figures, third-party datasets, or
+benchmark results.

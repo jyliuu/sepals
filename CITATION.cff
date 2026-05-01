@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this package, please cite the original paper."
+title: "sepals"
+version: 0.1.0
+authors:
+  - family-names: "Liu"
+    given-names: "Jinyang"
+license: "MIT"
+preferred-citation:
+  type: article
+  title: "Multivariate Regression and Machine Learning with Sums of Separable Functions"
+  authors:
+    - family-names: "Beylkin"
+      given-names: "Gregory"
+    - family-names: "Garcke"
+      given-names: "Jochen"
+    - family-names: "Mohlenkamp"
+      given-names: "Martin J."
+  year: 2008
+  url: "https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625"
+  notes: "Submitted December 2007; revised September 2008."
