@@ -26,7 +26,8 @@ regression algorithm described in:
 
 > Gregory Beylkin, Jochen Garcke, and Martin J. Mohlenkamp.
 > "Multivariate Regression and Machine Learning with Sums of Separable
-> Functions." Submitted December 2007; revised September 2008.
+> Functions." SIAM Journal on Scientific Computing, 31(3), 1840-1857, 2009.
+> DOI: <https://doi.org/10.1137/070710524>
 > PDF: <https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625>
 
 The separated representation, alternating least-squares fitting strategy,
@@ -40,6 +41,23 @@ does not relicense the original paper or any third-party datasets, benchmarks,
 or text.
 
 Implementation note: this entire codebase was written by GPT-5.5.
+
+BibTeX:
+
+```bibtex
+@article{doi:10.1137/070710524,
+author = {Beylkin, Gregory and Garcke, Jochen and Mohlenkamp, Martin J.},
+title = {Multivariate Regression and Machine Learning with Sums of Separable Functions},
+journal = {SIAM Journal on Scientific Computing},
+volume = {31},
+number = {3},
+pages = {1840-1857},
+year = {2009},
+doi = {10.1137/070710524},
+URL = {https://doi.org/10.1137/070710524},
+eprint = {https://doi.org/10.1137/070710524}
+}
+```
 
 ## Install
 

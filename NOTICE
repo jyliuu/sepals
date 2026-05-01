@@ -3,7 +3,8 @@ regression method described by:
 
 Gregory Beylkin, Jochen Garcke, and Martin J. Mohlenkamp,
 "Multivariate Regression and Machine Learning with Sums of Separable Functions",
-submitted December 2007; revised September 2008.
+SIAM Journal on Scientific Computing, 31(3), 1840-1857, 2009.
+DOI: https://doi.org/10.1137/070710524
 PDF: https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625
 
 Algorithmic credit:

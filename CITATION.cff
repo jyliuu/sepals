@@ -16,6 +16,12 @@ preferred-citation:
       given-names: "Jochen"
     - family-names: "Mohlenkamp"
       given-names: "Martin J."
-  year: 2008
-  url: "https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625"
-  notes: "Submitted December 2007; revised September 2008."
+  journal: "SIAM Journal on Scientific Computing"
+  volume: "31"
+  issue: "3"
+  start: "1840"
+  end: "1857"
+  year: 2009
+  doi: "10.1137/070710524"
+  url: "https://doi.org/10.1137/070710524"
+  notes: "PDF: https://ins.uni-bonn.de/media/public/publication-media/BE-GA-MO2007P.pdf?pk=625"
