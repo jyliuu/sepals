@@ -185,6 +185,8 @@ Important parameters:
 - `tol`: relative training-loss stopping tolerance.
 - `n_init`: number of random initializations.
 - `fit_intercept`: whether to subtract/add a mean intercept.
+- `kernel_backend`: `"optimized"` by default, or `"reference"` to force the
+  original NumPy kernels for parity checks.
 
 Methods:
 
@@ -200,6 +202,8 @@ Methods:
 
 ## Notes
 
-This package keeps the implementation NumPy-only. The biggest remaining cost is
-the repeated ALS fitting across hyperparameter grids. For large grid searches,
-parallelize at the experiment level.
+This package keeps the implementation NumPy-only. Hot ALS kernels live in a
+private module with reference and optimized variants, so future CPU, GPU, or
+compiled kernels can be tested against the original NumPy path. The biggest
+remaining cost is the repeated ALS fitting across hyperparameter grids. For
+large grid searches, parallelize at the experiment level.

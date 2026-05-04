@@ -26,8 +26,10 @@ import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from . import _als_kernels as kernels
 
 BasisKind = Literal["legendre", "monomial", "tent"]
+KernelBackend = Literal["auto", "reference", "optimized"]
 
 
 @dataclass
@@ -43,8 +45,15 @@ class _TentSparseInfo:
     both_left_idx: np.ndarray
     left_val: np.ndarray
     right_val: np.ndarray
+    left_val2: np.ndarray
+    right_val2: np.ndarray
+    left_x: np.ndarray
+    right_x: np.ndarray
     both_left_val: np.ndarray
     both_right_val: np.ndarray
+    both_cross_val: np.ndarray
+    tent_cols: np.ndarray
+    offdiag_cols: np.ndarray
 
 
 @dataclass(eq=False)
@@ -62,6 +71,7 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
     refit_scales: bool = True
     verbose: bool = False
     fit_intercept: bool = False
+    kernel_backend: KernelBackend = "optimized"
 
     def _validate_hyperparameters(self) -> None:
         if self.rank < 1:
@@ -78,6 +88,8 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
             raise ValueError("max_sweeps must be at least 1")
         if self.n_init < 1:
             raise ValueError("n_init must be at least 1")
+        if self.kernel_backend not in {"auto", "reference", "optimized"}:
+            raise ValueError("kernel_backend must be one of 'auto', 'reference', or 'optimized'")
 
     def _scale_X_fit(self, X: np.ndarray) -> np.ndarray:
         X = np.asarray(X, dtype=float)
@@ -177,43 +189,22 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
 
     @staticmethod
     def _product_except(values, scales, skip: int) -> np.ndarray:
-        n, r = values[0].shape
-        P = np.tile(scales, (n, 1)).astype(float)
-        for j, V in enumerate(values):
-            if j != skip:
-                P *= V
-        return P
+        return kernels.product_except_reference(values, scales, skip)
 
     @staticmethod
     def _product_except_into(values, scales, skip: int, out: np.ndarray) -> np.ndarray:
-        out[...] = scales
-        for j, V in enumerate(values):
-            if j != skip:
-                out *= V
-        return out
+        return kernels.product_except_reference_into(values, scales, skip, out)
 
     @staticmethod
     def _rank_design(values) -> np.ndarray:
-        Q = np.ones_like(values[0])
-        for V in values:
-            Q *= V
-        return Q
+        return kernels.rank_design_reference(values)
 
     @staticmethod
     def _rank_design_into(values, out: np.ndarray) -> np.ndarray:
-        out.fill(1.0)
-        for V in values:
-            out *= V
-        return out
+        return kernels.rank_design_reference_into(values, out)
 
     def _weighted_design_into(self, Phi: np.ndarray, P: np.ndarray, out: np.ndarray) -> np.ndarray:
-        M = Phi.shape[1]
-        if M >= 12:
-            out.reshape(Phi.shape[0], self.rank, M)[:] = P[:, :, None] * Phi[:, None, :]
-        else:
-            for l in range(self.rank):
-                out[:, l * M:(l + 1) * M] = P[:, [l]] * Phi
-        return out
+        return kernels.weighted_design_reference_into(Phi, P, out)
 
     def _tent_sparse_info_1d(self, x: np.ndarray) -> _TentSparseInfo:
         n_tents = 2 ** self.degree - 1
@@ -236,22 +227,20 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
             both_left_idx=left_k[both_mask] - 1,
             left_val=1.0 - frac[left_mask],
             right_val=frac[right_mask],
+            left_val2=(1.0 - frac[left_mask]) ** 2,
+            right_val2=frac[right_mask] ** 2,
+            left_x=x[left_mask],
+            right_x=x[right_mask],
             both_left_val=1.0 - frac[both_mask],
             both_right_val=frac[both_mask],
+            both_cross_val=(1.0 - frac[both_mask]) * frac[both_mask],
+            tent_cols=np.arange(n_tents),
+            offdiag_cols=np.arange(max(n_tents - 1, 0)),
         )
 
     @staticmethod
     def _tent_bincount(info: _TentSparseInfo, base: np.ndarray, power: int = 1) -> np.ndarray:
-        if power == 1:
-            left_weights = base[info.left_mask] * info.left_val
-            right_weights = base[info.right_mask] * info.right_val
-        else:
-            left_weights = base[info.left_mask] * info.left_val * info.left_val
-            right_weights = base[info.right_mask] * info.right_val * info.right_val
-        return (
-            np.bincount(info.left_idx, weights=left_weights, minlength=info.n_tents)
-            + np.bincount(info.right_idx, weights=right_weights, minlength=info.n_tents)
-        )
+        return kernels.tent_bincount_reference(info, base, power)
 
     def _tent_normal_equations_into(
         self,
@@ -261,58 +250,7 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
         lhs_out: np.ndarray,
         rhs_out: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        M = info.n_tents + 2
-        width = self.rank * M
-        lhs = lhs_out[:width, :width]
-        rhs = rhs_out[:width]
-        lhs.fill(0.0)
-
-        for l in range(self.rank):
-            row = l * M
-            wy = P[:, l] * y
-            rhs[row] = np.sum(wy)
-            rhs[row + 1] = wy @ info.x
-            rhs[row + 2:row + M] = self._tent_bincount(info, wy)
-
-            for k in range(l, self.rank):
-                col = k * M
-                block = lhs[row:row + M, col:col + M]
-                w = P[:, l] * P[:, k]
-                sum_w = np.sum(w)
-                sum_wx = w @ info.x
-                block[0, 0] = sum_w
-                block[0, 1] = sum_wx
-                block[1, 0] = sum_wx
-                block[1, 1] = w @ info.x2
-
-                const_tent = self._tent_bincount(info, w)
-                x_tent = self._tent_bincount(info, w * info.x)
-                tent_diag = self._tent_bincount(info, w, power=2)
-                block[0, 2:M] = const_tent
-                block[2:M, 0] = const_tent
-                block[1, 2:M] = x_tent
-                block[2:M, 1] = x_tent
-
-                tent_cols = np.arange(info.n_tents)
-                block[2 + tent_cols, 2 + tent_cols] = tent_diag
-                if info.n_tents > 1:
-                    offdiag = np.bincount(
-                        info.both_left_idx,
-                        weights=(
-                            w[info.both_mask]
-                            * info.both_left_val
-                            * info.both_right_val
-                        ),
-                        minlength=info.n_tents,
-                    )[:info.n_tents - 1]
-                    left_cols = np.arange(info.n_tents - 1)
-                    block[2 + left_cols, 3 + left_cols] = offdiag
-                    block[3 + left_cols, 2 + left_cols] = offdiag
-
-                if k != l:
-                    lhs[col:col + M, row:row + M] = block.T
-
-        return lhs, rhs
+        return kernels.tent_normal_equations_reference_into(info, P, y, lhs_out, rhs_out)
 
     def _predict_from_params(self, Phi_list, coeffs, scales, intercept: float) -> np.ndarray:
         n = Phi_list[0].shape[0]
@@ -363,47 +301,74 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
             prev_loss = np.inf
             history = []
             n = len(yc)
+            use_optimized_products = self.kernel_backend in {"auto", "optimized"}
             use_large_basis_buffers = max_M >= 12
-            P_work = np.empty((n, self.rank), dtype=float) if use_large_basis_buffers else None
-            Q_work = np.empty((n, self.rank), dtype=float) if use_large_basis_buffers else None
-            A_work = np.empty((n, self.rank * max_M), dtype=float) if use_large_basis_buffers else None
+            use_rank_work = use_large_basis_buffers or use_optimized_products
+            use_dense_work = not use_sparse_tent and use_rank_work
+            P_work = np.empty((n, self.rank), dtype=float) if use_rank_work else None
+            Q_work = np.empty((n, self.rank), dtype=float) if use_rank_work else None
+            A_work = np.empty((n, self.rank * max_M), dtype=float) if use_dense_work else None
             lhs_work = (
                 np.empty((self.rank * max_M, self.rank * max_M), dtype=float)
                 if use_sparse_tent
                 else None
             )
             rhs_work = np.empty(self.rank * max_M, dtype=float) if use_sparse_tent else None
+            prefix_work = np.empty((n, self.rank), dtype=float) if use_optimized_products else None
+            suffix_products = (
+                [np.empty((n, self.rank), dtype=float) for _ in range(len(Phi_list) + 1)]
+                if use_optimized_products
+                else None
+            )
             penalty_cache = {
                 Phi.shape[1]: np.tile(self._penalty_diag(Phi.shape[1]), self.rank)
                 for Phi in Phi_list
             }
 
             for sweep in range(self.max_sweeps):
+                if use_optimized_products:
+                    kernels.build_suffix_products(values, suffix_products)
+                    prefix_work.fill(1.0)
                 for m, Phi in enumerate(Phi_list):
                     n, M = Phi.shape
-                    if use_large_basis_buffers:
+                    if use_optimized_products:
+                        P = kernels.product_except_from_prefix_suffix(
+                            scales,
+                            prefix_work,
+                            suffix_products[m + 1],
+                            P_work,
+                        )
+                    elif use_large_basis_buffers:
                         P = self._product_except_into(values, scales, skip=m, out=P_work)
                     else:
                         P = self._product_except(values, scales, skip=m)
                     if use_sparse_tent:
-                        lhs, rhs = self._tent_normal_equations_into(
-                            tent_sparse_infos[m],
+                        if use_optimized_products:
+                            lhs, rhs = kernels.tent_normal_equations_optimized_into(
+                                tent_sparse_infos[m],
+                                P,
+                                yc,
+                                lhs_work,
+                                rhs_work,
+                            )
+                        else:
+                            lhs, rhs = self._tent_normal_equations_into(
+                                tent_sparse_infos[m],
+                                P,
+                                yc,
+                                lhs_work,
+                                rhs_work,
+                            )
+                    # A has blocks A_l = diag(P[:, l]) Phi.
+                    elif use_dense_work:
+                        lhs, rhs = kernels.dense_normal_equations_reference(
+                            Phi,
                             P,
                             yc,
-                            lhs_work,
-                            rhs_work,
+                            A_work[:, : self.rank * M],
                         )
-                    # A has blocks A_l = diag(P[:, l]) Phi.
-                    elif use_large_basis_buffers:
-                        A = self._weighted_design_into(Phi, P, A_work[:, :self.rank * M])
-                        lhs = A.T @ A
-                        rhs = A.T @ yc
                     else:
-                        A = np.empty((n, self.rank * M), dtype=float)
-                        for l in range(self.rank):
-                            A[:, l * M:(l + 1) * M] = P[:, [l]] * Phi
-                        lhs = A.T @ A
-                        rhs = A.T @ yc
+                        lhs, rhs = kernels.dense_normal_equations_reference(Phi, P, yc)
                     pen = penalty_cache[M]
                     lhs.flat[:: lhs.shape[0] + 1] += pen
                     try:
@@ -429,7 +394,14 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
                     values[m] = V
 
                     if self.refit_scales:
-                        if use_large_basis_buffers:
+                        if use_optimized_products:
+                            Q = kernels.rank_design_from_prefix_suffix(
+                                prefix_work,
+                                V,
+                                suffix_products[m + 1],
+                                Q_work,
+                            )
+                        elif use_large_basis_buffers:
                             Q = self._rank_design_into(values, Q_work)
                         else:
                             Q = self._rank_design(values)
@@ -440,8 +412,12 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
                             scales = np.linalg.solve(lhs_s, rhs_s)
                         except np.linalg.LinAlgError:
                             scales = np.linalg.lstsq(lhs_s, rhs_s, rcond=None)[0]
+                    if use_optimized_products:
+                        prefix_work *= V
 
-                if use_large_basis_buffers:
+                if use_optimized_products:
+                    pred_c = prefix_work @ scales
+                elif use_large_basis_buffers:
                     pred_c = self._rank_design_into(values, Q_work) @ scales
                 else:
                     pred_c = self._rank_design(values) @ scales
