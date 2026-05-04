@@ -105,6 +105,99 @@ pred = model.predict(X_test)
 print("RMSE:", rmse(y_test, pred))
 ```
 
+## Examples
+
+### Example 1: Friedman #1 (sklearn) and rank-separated factors
+
+Friedman #1 is a standard synthetic regression benchmark: inputs are drawn
+uniformly in $[0, 1]^p$, and the response depends on a nonlinear mix of the
+first five coordinates (any extra dimensions are noise-only). In scikit-learn’s
+`make_friedman1`, the mean function is
+$10\sin(\pi x_1 x_2) + 20(x_3 - \frac{1}{2})^2 + 10 x_4 + 5 x_5$ for the
+first five coordinates (1-based indices); Gaussian noise is added when
+`noise` is positive.
+
+The figure below is produced by `scripts/make_readme_plots.py` (same settings
+as `example1_sklearn_friedman1` in that script):
+
+- draws 600 training samples with `n_features=5`, `noise=0.1`, and
+  `random_state=0`;
+- fits `SeparatedALSRegressor(rank=3, degree=3, max_sweeps=20, random_state=0)`
+  (other hyperparameters left at package defaults: Legendre basis,
+  `ridge=1e-8`, `n_init=3`, `tol=1e-7`, `fit_intercept=False`,
+  `kernel_backend="optimized"`);
+- calls `plot_separation_stages` with `n_grid=150` and writes
+  `docs/images/friedman1_sklearn_separation_stages.png`.
+
+Regenerate all example figures:
+
+```bash
+uv run --extra plot python scripts/make_readme_plots.py
+```
+
+<p align="center">
+  <img
+    src="./docs/images/friedman1_sklearn_separation_stages.png"
+    alt="Friedman 1 sklearn: separated ALS factors by rank term."
+    width="95%"
+  />
+</p>
+
+### Example 2: Friedman #1 with more features (package helper)
+
+The Quick Start block above uses the package helper `friedman1`, which
+implements the same mean function on uniform $[0,1]^p$ inputs (optional
+Gaussian noise via `noise_std`; that block leaves the default
+`noise_std=0.0`). There, `p=10`, `2_000` training and `500` test rows,
+`rank=4`, `degree=5`, `basis="monomial"`, `max_sweeps=40`, `n_init=2`,
+`random_state=123`, and `fit_intercept=True`. The separation plot below fits on
+the `2_000` training rows only and is saved as
+`docs/images/friedman1_p10_separation_stages.png`.
+
+<p align="center">
+  <img
+    src="./docs/images/friedman1_p10_separation_stages.png"
+    alt="Friedman 1 package helper p=10: separated ALS factors by rank term."
+    width="95%"
+  />
+</p>
+
+### Example 3: Friedman #2 and the tent basis
+
+Friedman #2 is a second classic benchmark: four inputs on different scales
+with a strongly nonlinear interaction; the package helper is `friedman2`.
+The Tent Basis Example section below fits `SeparatedALSRegressor` with
+`basis="tent"` on `5_000` samples, `rank=4`, `degree=6`,
+`smoothness=1e-6`, `penalty_kind="tent_level"`, `max_sweeps=20`, and
+`random_state=123`. The figure is `docs/images/friedman2_tent_separation_stages.png`.
+
+<p align="center">
+  <img
+    src="./docs/images/friedman2_tent_separation_stages.png"
+    alt="Friedman 2 tent basis: separated ALS factors by rank term."
+    width="95%"
+  />
+</p>
+
+### Example 4: California housing (tent, tuned hyperparameters)
+
+[California housing](https://scikit-learn.org/stable/datasets/real_world.html#california-housing-dataset)
+(eight numeric predictors, median house value as target). The script trains on
+a random subset of 6,000 rows (`random_state=42`) for speed, using hyperparameters
+from an MPF2 interpretable search (`sepals_rank_le_2_ctr23`): `rank=1`,
+`degree=4`, `basis="tent"`, `ridge=0.007168023918105929`,
+`smoothness=7.218538035064866e-08`, `max_sweeps=100`, `tol=4.952524696642217e-06`,
+`n_init=3`, `refit_scales=True`, `fit_intercept=False`, `penalty_kind="tent_level"`,
+`random_state=0`. Output: `docs/images/california_housing_separation_stages.png`.
+
+<p align="center">
+  <img
+    src="./docs/images/california_housing_separation_stages.png"
+    alt="California housing: separated ALS factors (rank 1 tent run)."
+    width="95%"
+  />
+</p>
+
 ## Scikit-Learn Usage
 
 `SeparatedALSRegressor` follows the scikit-learn estimator API. It supports
