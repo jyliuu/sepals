@@ -27,10 +27,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+plot = [
+    "matplotlib>=3.7",
+]
 test = [
     "pytest>=7",
+    "matplotlib>=3.7",
 ]
-
 mps = [
     "torch>=2.2",
 ]
