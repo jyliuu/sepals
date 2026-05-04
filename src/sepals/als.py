@@ -27,9 +27,10 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
 
 from . import _als_kernels as kernels
+from ._mps_backend import fit_dense_mps
 
 BasisKind = Literal["legendre", "monomial", "tent"]
-KernelBackend = Literal["auto", "reference", "optimized"]
+KernelBackend = Literal["auto", "reference", "optimized", "mps"]
 
 
 @dataclass
@@ -88,8 +89,8 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
             raise ValueError("max_sweeps must be at least 1")
         if self.n_init < 1:
             raise ValueError("n_init must be at least 1")
-        if self.kernel_backend not in {"auto", "reference", "optimized"}:
-            raise ValueError("kernel_backend must be one of 'auto', 'reference', or 'optimized'")
+        if self.kernel_backend not in {"auto", "reference", "optimized", "mps"}:
+            raise ValueError("kernel_backend must be one of 'auto', 'reference', 'optimized', or 'mps'")
 
     def _scale_X_fit(self, X: np.ndarray) -> np.ndarray:
         X = np.asarray(X, dtype=float)
@@ -292,6 +293,24 @@ class SeparatedALSRegressor(RegressorMixin, BaseEstimator):
             Phi_val = None
 
         rng_master = np.random.default_rng(self.random_state)
+        if self.kernel_backend == "mps":
+            if use_sparse_tent:
+                raise ValueError(
+                    "kernel_backend='mps' currently supports dense ALS paths only. "
+                    "Use basis='legendre', basis='monomial', or a lower tent degree "
+                    "that does not trigger the sparse tent path."
+                )
+            self.coeffs_, self.scales_, self.history_, self.all_histories_ = fit_dense_mps(
+                self,
+                Phi_list,
+                yc,
+                Phi_val,
+                y_val,
+                self.intercept_,
+                rng_master,
+            )
+            return self
+
         best = None
         histories = []
 

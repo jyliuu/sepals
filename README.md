@@ -185,8 +185,9 @@ Important parameters:
 - `tol`: relative training-loss stopping tolerance.
 - `n_init`: number of random initializations.
 - `fit_intercept`: whether to subtract/add a mean intercept.
-- `kernel_backend`: `"optimized"` by default, or `"reference"` to force the
-  original NumPy kernels for parity checks.
+- `kernel_backend`: `"optimized"` by default, `"reference"` to force the
+  original NumPy kernels for parity checks, or `"mps"` to run dense ALS fitting
+  on Apple Silicon through PyTorch's Metal backend.
 
 Methods:
 
@@ -202,8 +203,19 @@ Methods:
 
 ## Notes
 
-This package keeps the implementation NumPy-only. Hot ALS kernels live in a
-private module with reference and optimized variants, so future CPU, GPU, or
-compiled kernels can be tested against the original NumPy path. The biggest
+The default install keeps the implementation NumPy-only. Hot ALS kernels live in
+a private module with reference and optimized variants. Dense ALS fits can also
+use Apple Silicon through `kernel_backend="mps"` after installing the optional
+PyTorch dependency:
+
+```bash
+pip install "sepals[mps]"
+```
+
+The MPS backend currently uses float32 tensors and supports dense ALS paths
+(`"legendre"`, `"monomial"`, and low-level `"tent"` before sparse tent assembly
+is selected). It is intended for larger dense fits where GPU launch overhead can
+be amortized; small fits usually remain faster on the optimized NumPy path.
+High-level sparse tent fitting remains on the optimized CPU path. The biggest
 remaining cost is the repeated ALS fitting across hyperparameter grids. For
 large grid searches, parallelize at the experiment level.

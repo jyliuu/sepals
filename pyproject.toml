@@ -31,6 +31,10 @@ test = [
     "pytest>=7",
 ]
 
+mps = [
+    "torch>=2.2",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sepals"]
 
